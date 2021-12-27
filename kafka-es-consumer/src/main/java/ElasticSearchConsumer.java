@@ -1,3 +1,4 @@
+import com.google.gson.JsonParser;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -64,6 +65,14 @@ public class ElasticSearchConsumer {
         consumer.subscribe(Collections.singletonList(topic));
         return consumer;
     }
+    public static JsonParser jsonParser = new JsonParser();
+
+    public static String extractIdFromTweet(String tweetJson){
+        return jsonParser.parse(tweetJson)
+                .getAsJsonObject()
+                .get("id_str").getAsString();
+    }
+
     public static void main(String[] args) throws IOException {
         Logger logger = LoggerFactory.getLogger(ElasticSearchConsumer.class.getName());
         RestHighLevelClient client = createClient();
@@ -79,14 +88,13 @@ public class ElasticSearchConsumer {
 
             for (ConsumerRecord<String,String> record: records){
                 numread += 1;
-//                logger.info("Key: " + record.key() + "\n" +
-//                        "Value: " + record.value() + "\n" +
-//                        "Partition: " + record.partition() + "\n"+
-//                        "Offset: " + record.offset() + "\n");
+
                 String jsonString = record.value();
+                String twitterSpecificId = extractIdFromTweet(record.value());
                 IndexRequest indexRequest = new IndexRequest(
                         "twitter",
-                        "tweets"
+                        "tweets",
+                        twitterSpecificId
                 ).source(jsonString, XContentType.JSON);
 
                 IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
