@@ -73,7 +73,7 @@ public class TwitterProducer {
         //connect client
         hosebirdClient.connect();
 
-        int PostsToDownload = 100;
+        int PostsToDownload = 200;
         int PostDownloaded = 0;
 
         //create logger

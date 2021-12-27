@@ -10,6 +10,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.RequestOptions;
@@ -59,6 +61,8 @@ public class ElasticSearchConsumer {
         properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        properties.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "20");
 
         //create a consumer
         KafkaConsumer<String, String> consumer = new KafkaConsumer<String, String>(properties);
@@ -79,41 +83,35 @@ public class ElasticSearchConsumer {
 
         KafkaConsumer<String, String> consumer = createConsumer("TwitterSearch_topic");
 
-        int numfrommesstoread = 5;
-        boolean keeponreading = true;
-        int numread = 0;
 
-        while(keeponreading){
-            ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
-
+        while(true){
+            ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(3000));
+            Integer recordsCount = records.count();
+            logger.info("Received: " + Integer.toString(recordsCount) + " records.");
+            BulkRequest bulkRequest = new BulkRequest();
             for (ConsumerRecord<String,String> record: records){
-                numread += 1;
-
-                String jsonString = record.value();
-                String twitterSpecificId = extractIdFromTweet(record.value());
-                IndexRequest indexRequest = new IndexRequest(
-                        "twitter",
-                        "tweets",
-                        twitterSpecificId
-                ).source(jsonString, XContentType.JSON);
-
-                IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
-                String id = indexResponse.getId();
-                logger.info(id);
                 try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    String jsonString = record.value();
+                    String twitterSpecificId = extractIdFromTweet(record.value());
+                    IndexRequest indexRequest = new IndexRequest(
+                            "twitter",
+                            "tweets",
+                            twitterSpecificId
+                    ).source(jsonString, XContentType.JSON);
+
+                    bulkRequest.add(indexRequest);
+                } catch (NullPointerException e) {
+                    logger.warn("Skipping bad data...");
                 }
-                if(numfrommesstoread < numread){
-                    keeponreading = false;
-                    break;
-                }
+
             }
-
+            if (recordsCount > 0) {
+                BulkResponse bulkResponse = client.bulk(bulkRequest, RequestOptions.DEFAULT);
+                logger.info("Committing offsets...");
+                consumer.commitSync();
+                logger.info("Offsets committed...");
+            }
         }
-        logger.info("Exiting the application");
-
-        client.close();
+//        client.close();
     }
 }
