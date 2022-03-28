@@ -30,7 +30,8 @@ public class TwitterProducer {
         StatusesFilterEndpoint hosebirdEndpoint = new StatusesFilterEndpoint();
         List<String> terms = Lists.newArrayList("kafka", "java", "python", "linux", "bitcoin");
         hosebirdEndpoint.trackTerms(terms);
-
+        
+        //Insert keys (those provided are revoked)
         Authentication hosebirdAuth = new OAuth1(
                 "s3vaERZbLQzyv5Y3wkMGKvy7B",
                 "6lbFsfWPI2Ql1WiqxV4MnCrtR2MWdWUwdDe6slYSu9ktNErKec",
